@@ -2,14 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Product\UpdateProductRequest;
 use App\Models\Product;
+use App\Services\ProductService;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    protected $service;
+
+    public function __construct(ProductService $service)
+    {
+        $this->service = $service;
+    }
+
     public function index()
     {
-        $products = Product::latest()->paginate(10);
+        $products = $this->service->listProducts();
         return view('products.index', compact('products'));
     }
 
@@ -20,14 +29,7 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-        ]);
-
-        Product::create($validated);
-
+        $this->service->storeProduct($request->all());
         return redirect()->route('products.index')->with('success', 'Product created successfully.');
     }
 
@@ -36,23 +38,24 @@ class ProductController extends Controller
         return view('products.edit', compact('product'));
     }
 
-    public function update(Request $request, Product $product)
+    public function update(UpdateProductRequest $request, $id)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-        ]);
+        try {
+            $product = $this->service->updateProduct($id, $request->validated());
 
-        $product->update($validated);
+            if (!$product) {
+                return redirect()->back()->with('error', 'Produk tidak ditemukan.');
+            }
 
-        return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+            return redirect()->route('products.index')->with('success', 'Produk berhasil diperbarui.');
+        } catch (\Exception $e) {
+            return redirect()->route('products.index')->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Product $product)
     {
-        $product->delete();
-
+        $this->service->deleteProduct($product);
         return redirect()->route('products.index')->with('success', 'Produk berhasil dihapus.');
     }
 }
